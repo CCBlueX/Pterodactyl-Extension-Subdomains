@@ -1,0 +1,57 @@
+{
+    "$schema": "./node_modules/@pterodactyl/sdk/manifest.schema.json",
+    "id": "subdomains",
+    "name": "Subdomains",
+    "version": "1.0.0",
+    "requires": {
+        "panel": "^2.0.0-dev",
+        "sdk": "^2.0.0-beta.4",
+        "php": "^8.3"
+    },
+    "description": "Let users create subdomains for their servers, with Minecraft SRV records, on your Cloudflare domains.",
+    "author": "Izuna Seikatsu",
+    "provider": "Subdomains\\SubdomainsProvider",
+    "ui": {
+        "entry": "dist/client.js",
+        "mode": "native",
+        "prefix": "sub",
+        "screens": [
+            {
+                "id": "subdomains",
+                "area": "server",
+                "path": "subdomains",
+                "nav": {
+                    "label": "Subdomains",
+                    "icon": "globe",
+                    "order": 20
+                },
+                "permission": [
+                    "ext.subdomains.read"
+                ],
+                "when": {
+                    "runtime": true
+                }
+            },
+            {
+                "id": "admin",
+                "area": "admin",
+                "path": "subdomains",
+                "nav": {
+                    "label": "Subdomains",
+                    "icon": "globe"
+                }
+            },
+            {
+                "id": "server-tab",
+                "area": "admin",
+                "parent": "admin.server",
+                "path": "subdomains",
+                "nav": {
+                    "label": "Subdomains",
+                    "order": 10
+                }
+            }
+        ]
+    },
+    "icon": "globe"
+}

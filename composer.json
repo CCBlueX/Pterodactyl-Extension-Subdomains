@@ -1,0 +1,11 @@
+{
+    "description": "Let users create subdomains for their servers, with Minecraft SRV records, on your Cloudflare domains.",
+    "autoload": {
+        "psr-4": {
+            "Subdomains\\": "src/"
+        }
+    },
+    "config": {
+        "autoloader-suffix": "SubdomainsExtension"
+    }
+}

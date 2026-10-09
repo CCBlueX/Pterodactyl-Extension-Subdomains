@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+env:
+  # Pterodactyl 2.0 is not released yet; pin the panel commit the extension is tested against.
+  PANEL_REPOSITORY: pterodactyl/panel
+  PANEL_REF: 135b2985606f086fcd606367a0233b3d306ccd4b
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.PANEL_REPOSITORY }}
+          ref: ${{ env.PANEL_REF }}
+          path: .panel
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci && npm run sdk:generate && npm run sdk:testing
+        working-directory: .panel
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: phpunit:12, pint
+      - run: pint --test
+      - run: if [ -f phpunit.xml ]; then phpunit; fi
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.PANEL_REPOSITORY }}
+          ref: ${{ env.PANEL_REF }}
+          path: .panel
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, pdo_mysql, zip
+      - name: Check the version
+        run: test "v$(jq -r .version extension.json)" = "$GITHUB_REF_NAME"
+      - run: npm ci && npm run sdk:generate
+        working-directory: .panel
+      - run: npm install && npm run build
+      - run: composer install --no-dev --no-interaction --no-progress --prefer-dist
+        working-directory: .panel
+      - name: Pack the extension
+        working-directory: .panel
+        env:
+          PTERODACTYL_EXTENSIONS_ENABLED: 'false'
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+        run: |
+          id=$(jq -r .id ../extension.json)
+          version=$(jq -r .version ../extension.json)
+          rsync -a --exclude node_modules --exclude .panel --exclude .git ../ "$RUNNER_TEMP/$id/"
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan p:extension:doctor "$RUNNER_TEMP/$id"
+          php artisan p:extension:pack "$RUNNER_TEMP/$id" --output="$RUNNER_TEMP/$id-$version.pteroext"
+          echo "PACKAGE=$RUNNER_TEMP/$id-$version.pteroext" >> "$GITHUB_ENV"
+      - run: gh release create "$GITHUB_REF_NAME" "$PACKAGE" --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
