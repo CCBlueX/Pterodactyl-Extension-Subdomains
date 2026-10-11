@@ -7,4 +7,5 @@ use Subdomains\Http\Controllers\ServerController;
 
 Route::get('/', [ServerController::class, 'index']);
 Route::post('/', [ServerController::class, 'store']);
+Route::patch('/{id}', [ServerController::class, 'update'])->whereNumber('id');
 Route::delete('/{id}', [ServerController::class, 'destroy'])->whereNumber('id');

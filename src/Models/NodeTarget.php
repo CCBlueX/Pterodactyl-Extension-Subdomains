@@ -7,11 +7,13 @@ namespace Subdomains\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * The public addresses of a node, for nodes whose allocations listen on 0.0.0.0 or private addresses.
+ * Where subdomains on a node point: its public addresses ("ip"), the allocation alias ("alias") or a hostname ("hostname").
  *
  * @property int $node_id
+ * @property string $mode
  * @property string|null $ipv4
  * @property string|null $ipv6
+ * @property string|null $hostname
  */
 final class NodeTarget extends Model
 {
@@ -21,5 +23,13 @@ final class NodeTarget extends Model
 
     protected $primaryKey = 'node_id';
 
-    protected $fillable = ['node_id', 'ipv4', 'ipv6'];
+    protected $fillable = ['node_id', 'mode', 'ipv4', 'ipv6', 'hostname'];
+
+    protected $attributes = ['mode' => 'ip'];
+
+    /** @return array{mode: string, ipv4: string|null, ipv6: string|null, hostname: string|null} */
+    public function settings(): array
+    {
+        return ['mode' => $this->mode, 'ipv4' => $this->ipv4, 'ipv6' => $this->ipv6, 'hostname' => $this->hostname];
+    }
 }

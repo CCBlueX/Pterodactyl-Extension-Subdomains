@@ -1,5 +1,5 @@
 {
-    "description": "Let users create subdomains for their servers, with Minecraft SRV records, on your Cloudflare domains.",
+    "description": "Let users create subdomains for their servers on your Cloudflare, Bunny DNS or PowerDNS domains, with SRV records and per-egg templates.",
     "autoload": {
         "psr-4": {
             "Subdomains\\": "src/"

@@ -13,13 +13,13 @@ final class ReconcileCommand extends Command
 {
     protected $signature = 'subdomains:reconcile';
 
-    protected $description = 'Remove DNS records of deleted servers and update records whose server address changed.';
+    protected $description = 'Remove DNS records of deleted servers and update records whose server address, allocation or template changed.';
 
     public function handle(Manager $records): int
     {
-        Record::query()->with(['domain', 'server.allocation', 'server.node', 'server.egg'])->each(function (Record $record) use ($records): void {
+        Record::query()->with(['domain', 'server.allocation', 'server.allocations', 'server.node', 'server.egg'])->lazyById(100)->each(function (Record $record) use ($records): void {
             try {
-                $record->server === null ? $records->delete($record) : $records->sync($record, $record->server);
+                $records->reconcile($record);
             } catch (Throwable $exception) {
                 $this->warn("{$record->name}: {$exception->getMessage()}");
             }
