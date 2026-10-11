@@ -25,6 +25,8 @@ Let users give their servers a name like `play.example.com`, on your Cloudflare,
 
 ![Admin domains](docs/screenshots/admin.png)
 
+![Record templates](docs/screenshots/templates.png)
+
 ## Permissions
 
 Subusers get a **Subdomains** group in the server's **Users** tab: see, create, change and delete. The older "manage" permission still covers all three changes.
