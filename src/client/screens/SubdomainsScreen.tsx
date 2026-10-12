@@ -142,7 +142,7 @@ function CreateForm({ data, identifier, onData }: { data: ServerSubdomains; iden
                 }}
             >
                 <div className='sub:grid sub:gap-2'>
-                    <div className='sub:grid sub:gap-2 sub:sm:grid-cols-[minmax(0,1fr)_auto_14rem] sub:sm:items-end'>
+                    <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-2 sub:sm:grid-cols-[minmax(0,1fr)_auto_14rem] sub:sm:items-end'>
                         <div>
                             <Label htmlFor='sub-name'>Name</Label>
                             {automatic ? (
@@ -175,7 +175,7 @@ function CreateForm({ data, identifier, onData }: { data: ServerSubdomains; iden
                         </div>
                     )}
                 </div>
-                <div className='sub:grid sub:gap-2 sub:sm:grid-cols-2'>
+                <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-2 sub:sm:grid-cols-2'>
                     <div>
                         <Label htmlFor='sub-allocation'>Points to</Label>
                         <Select id='sub-allocation' value={allocation} onChange={(value) => setAllocation(Number(value))} options={allocationOptions(data.allocations)} />
@@ -186,7 +186,7 @@ function CreateForm({ data, identifier, onData }: { data: ServerSubdomains; iden
                     </div>
                 </div>
                 <div className='sub:flex sub:flex-col sub:gap-3 sub:sm:flex-row sub:sm:items-center sub:sm:justify-between'>
-                    <p className='sub:min-w-0 sub:truncate sub:text-sm sub:text-muted-foreground' aria-live='polite'>
+                    <p className='sub:min-w-0 sub:text-sm sub:text-muted-foreground' aria-live='polite'>
                         {label && selected ? (
                             <>
                                 Players join with <span className='sub:font-mono sub:text-foreground'>{`${label}.${selected.name}`}</span>
