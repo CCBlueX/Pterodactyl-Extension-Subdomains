@@ -6,6 +6,7 @@ import {
     Dialog,
     Input,
     Label,
+    NamedIcon,
     Select,
     ServerContentBlock,
     ServerError,
@@ -16,7 +17,7 @@ import {
     useCurrentServerRequired,
     useServerPermission,
 } from '@pterodactyl/sdk';
-import { createSubdomain, deleteSubdomain, getSubdomains, keys, updateSubdomain, type Allocation, type ServerSubdomains, type SubdomainRecord } from '../api';
+import { createSubdomain, deleteSubdomain, getSubdomains, keys, rollName, updateSubdomain, type Allocation, type ServerSubdomains, type SubdomainRecord } from '../api';
 import RecordsTable from '../components/RecordsTable';
 
 const PRIMARY = 0;
@@ -68,7 +69,7 @@ export default function SubdomainsScreen() {
                         : `This server has reached its subdomain limit. Delete one of its ${limit} subdomains to create another, or ask an administrator for more.`}
                 </Alert>
             )}
-            {canCreate && domains.length > 0 && !full && <CreateForm data={subdomains.data} identifier={identifier} onCreated={update} />}
+            {canCreate && domains.length > 0 && !full && <CreateForm data={subdomains.data} identifier={identifier} onData={update} />}
             <p className='sub:mb-2 sub:text-sm sub:text-muted-foreground'>
                 {records.length} of {limit} subdomains are in use.
             </p>
@@ -105,25 +106,31 @@ export default function SubdomainsScreen() {
     );
 }
 
-function CreateForm({ data, identifier, onCreated }: { data: ServerSubdomains; identifier: string; onCreated: (data: ServerSubdomains) => void }) {
+const sanitize = (name: string) => name.toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+function CreateForm({ data, identifier, onData }: { data: ServerSubdomains; identifier: string; onData: (data: ServerSubdomains) => void }) {
     const [name, setName] = useState('');
     const [domain, setDomain] = useState<number | null>(null);
     const [allocation, setAllocation] = useState(PRIMARY);
     const [note, setNote] = useState('');
-    const domainName = data.domains.find((item) => item.id === domain)?.name;
+    const selected = data.domains.find((item) => item.id === domain);
+    // Pattern and random domains pick the name; the user only sees which one they get.
+    const automatic = selected !== undefined && selected.naming !== 'custom';
+    const label = automatic ? (selected.preview ?? '') : name;
 
     useEffect(() => setDomain((current) => (data.domains.some((item) => item.id === current) ? current : (data.domains[0]?.id ?? null))), [data.domains]);
 
     const creation = useMutation({
-        mutationFn: () => createSubdomain(identifier, { domain: domain!, name, allocation: allocation === PRIMARY ? null : allocation, note }),
+        mutationFn: () => createSubdomain(identifier, { domain: domain!, ...(automatic ? {} : { name }), allocation: allocation === PRIMARY ? null : allocation, note }),
         onSuccess: (result) => {
-            onCreated(result);
+            onData(result);
             toast.success('Subdomain created. DNS changes can take a few minutes.');
             setName('');
             setNote('');
         },
         onError: (error) => toast.error(httpErrorToHuman(error)),
     });
+    const rolling = useMutation({ mutationFn: () => rollName(identifier, domain!), onSuccess: onData, onError: (error) => toast.error(httpErrorToHuman(error)) });
 
     return (
         <TitledGreyBox title='New subdomain' className='sub:mb-6'>
@@ -134,16 +141,39 @@ function CreateForm({ data, identifier, onCreated }: { data: ServerSubdomains; i
                     creation.mutate();
                 }}
             >
-                <div className='sub:grid sub:gap-2 sub:sm:grid-cols-[minmax(0,1fr)_auto_14rem] sub:sm:items-end'>
-                    <div>
-                        <Label htmlFor='sub-name'>Name</Label>
-                        <Input id='sub-name' placeholder='play' maxLength={63} value={name} onChange={(event) => setName(event.currentTarget.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+                <div className='sub:grid sub:gap-2'>
+                    <div className='sub:grid sub:gap-2 sub:sm:grid-cols-[minmax(0,1fr)_auto_14rem] sub:sm:items-end'>
+                        <div>
+                            <Label htmlFor='sub-name'>Name</Label>
+                            {automatic ? (
+                                <Input id='sub-name' readOnly className='sub:cursor-default sub:font-mono' placeholder='No free name' value={selected.preview ?? ''} />
+                            ) : (
+                                <Input id='sub-name' placeholder='play' maxLength={63} value={name} onChange={(event) => setName(sanitize(event.currentTarget.value))} />
+                            )}
+                        </div>
+                        <span className='sub:hidden sub:pb-2 sub:text-muted-foreground sub:sm:block'>.</span>
+                        <div>
+                            <Label htmlFor='sub-domain'>Domain</Label>
+                            <Select id='sub-domain' value={domain} onChange={(value) => setDomain(Number(value))} options={data.domains.map((item) => ({ value: item.id, label: item.name }))} />
+                        </div>
                     </div>
-                    <span className='sub:hidden sub:pb-2 sub:text-muted-foreground sub:sm:block'>.</span>
-                    <div>
-                        <Label htmlFor='sub-domain'>Domain</Label>
-                        <Select id='sub-domain' value={domain} onChange={(value) => setDomain(Number(value))} options={data.domains.map((item) => ({ value: item.id, label: item.name }))} />
-                    </div>
+                    {automatic && (
+                        <div className='sub:flex sub:flex-wrap sub:items-center sub:gap-x-3 sub:gap-y-1 sub:text-xs sub:text-muted-foreground'>
+                            {selected.preview === null ? (
+                                <span className='sub:text-warning'>No free name is left on {selected.name}. Ask an administrator.</span>
+                            ) : (
+                                <span>{selected.random ? `Names on ${selected.name} are random.` : `Names on ${selected.name} are picked for you.`}</span>
+                            )}
+                            {selected.random && (
+                                <Button.Text size='xsmall' isLoading={rolling.isPending} onClick={() => rolling.mutate()}>
+                                    <span className='sub:inline-flex sub:items-center sub:gap-1.5'>
+                                        <NamedIcon name='refresh-cw' aria-hidden className='sub:h-3.5 sub:w-3.5' />
+                                        New random name
+                                    </span>
+                                </Button.Text>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <div className='sub:grid sub:gap-2 sub:sm:grid-cols-2'>
                     <div>
@@ -157,15 +187,15 @@ function CreateForm({ data, identifier, onCreated }: { data: ServerSubdomains; i
                 </div>
                 <div className='sub:flex sub:flex-col sub:gap-3 sub:sm:flex-row sub:sm:items-center sub:sm:justify-between'>
                     <p className='sub:min-w-0 sub:truncate sub:text-sm sub:text-muted-foreground' aria-live='polite'>
-                        {name && domainName ? (
+                        {label && selected ? (
                             <>
-                                Players join with <span className='sub:font-mono sub:text-foreground'>{`${name}.${domainName}`}</span>
+                                Players join with <span className='sub:font-mono sub:text-foreground'>{`${label}.${selected.name}`}</span>
                             </>
                         ) : (
                             'Players can join with this address instead of the IP and port.'
                         )}
                     </p>
-                    <Button type='submit' className='sub:shrink-0' disabled={name === '' || domain === null} isLoading={creation.isPending}>
+                    <Button type='submit' className='sub:shrink-0' disabled={label === '' || domain === null} isLoading={creation.isPending}>
                         Create
                     </Button>
                 </div>
@@ -183,10 +213,14 @@ interface EditProps {
 }
 
 function EditDialog({ record, data, identifier, onClose, onSaved }: EditProps) {
+    const [name, setName] = useState(record.name);
     const [allocation, setAllocation] = useState(record.allocation_missing ? PRIMARY : (record.allocation_id ?? PRIMARY));
     const [note, setNote] = useState(record.note ?? '');
+    // Only domains where users type the name allow renaming.
+    const renamable = data.domains.find((item) => item.id === record.domain_id)?.naming === 'custom';
+    const renamed = renamable && name !== record.name;
     const saving = useMutation({
-        mutationFn: () => updateSubdomain(identifier, record.id, { allocation: allocation === PRIMARY ? null : allocation, note }),
+        mutationFn: () => updateSubdomain(identifier, record.id, { ...(renamed ? { name } : {}), allocation: allocation === PRIMARY ? null : allocation, note }),
         onSuccess: (result) => {
             onSaved(result);
             onClose();
@@ -198,6 +232,18 @@ function EditDialog({ record, data, identifier, onClose, onSaved }: EditProps) {
     return (
         <Dialog open onClose={onClose} title={`Edit ${record.hostname}`} preventExternalClose={saving.isPending}>
             <div className='sub:grid sub:gap-4'>
+                {renamable ? (
+                    <div>
+                        <Label htmlFor='sub-edit-name'>Name</Label>
+                        <div className='sub:flex sub:items-center sub:gap-2'>
+                            <Input id='sub-edit-name' maxLength={63} value={name} onChange={(event) => setName(sanitize(event.currentTarget.value))} />
+                            <span className='sub:shrink-0 sub:font-mono sub:text-sm sub:text-muted-foreground'>.{record.domain}</span>
+                        </div>
+                        {renamed && <p className='sub:mt-1 sub:text-xs sub:text-muted-foreground'>{record.hostname} stops working once you save.</p>}
+                    </div>
+                ) : (
+                    <p className='sub:text-sm sub:text-muted-foreground'>Names on {record.domain} are picked automatically and cannot be changed.</p>
+                )}
                 <div>
                     <Label htmlFor='sub-edit-allocation'>Points to</Label>
                     <Select id='sub-edit-allocation' value={allocation} onChange={(value) => setAllocation(Number(value))} options={allocationOptions(data.allocations)} />
@@ -211,7 +257,7 @@ function EditDialog({ record, data, identifier, onClose, onSaved }: EditProps) {
                 <Button.Text onClick={onClose} disabled={saving.isPending}>
                     Cancel
                 </Button.Text>
-                <Button isLoading={saving.isPending} onClick={() => saving.mutate()}>
+                <Button isLoading={saving.isPending} disabled={renamable && name === ''} onClick={() => saving.mutate()}>
                     Save
                 </Button>
             </Dialog.Footer>

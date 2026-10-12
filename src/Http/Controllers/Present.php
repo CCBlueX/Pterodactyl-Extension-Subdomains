@@ -53,6 +53,7 @@ final class Present
     public static function domain(Domain $domain, int $records): array
     {
         $credentials = Providers::visible($domain->provider, $domain->credentials ?? []);
+        $naming = $domain->naming();
 
         return [
             'id' => $domain->id,
@@ -61,6 +62,9 @@ final class Present
             'zone' => $domain->zone_name ?? $domain->name,
             'enabled' => $domain->enabled,
             'eggs' => array_values(array_map('intval', $domain->eggs ?? [])),
+            'naming_mode' => $naming->mode,
+            'naming_pattern' => $naming->pattern,
+            'naming_length' => $naming->length,
             'records' => $records,
             'credentials' => $credentials['values'],
             'secrets' => $credentials['secrets'],

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Subdomains\Records;
 
+use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Pterodactyl\Models\Allocation;
 use Pterodactyl\Models\Server;
@@ -16,13 +18,17 @@ use Subdomains\Models\NodeTarget;
 use Subdomains\Models\Record;
 use Subdomains\Settings;
 use Subdomains\Support\Blacklist;
-use Subdomains\Support\Names;
 use Subdomains\Support\Target;
 use Throwable;
 
 final readonly class Manager
 {
-    public function __construct(private Providers $providers, private Templates $templates, private Settings $settings) {}
+    /** How long a random name shown to a user stays reserved for them, in seconds. */
+    private const int KEEP_NAME = 3600;
+
+    private const int INSERT_ATTEMPTS = 3;
+
+    public function __construct(private Providers $providers, private Templates $templates, private Settings $settings, private Cache $cache) {}
 
     public function limit(Server $server): int
     {
@@ -45,28 +51,20 @@ final readonly class Manager
         return Domain::query()->where('enabled', true)->orderBy('name')->get()->filter(fn (Domain $domain): bool => $domain->allowsEgg($server->egg_id))->values();
     }
 
-    public function create(Server $server, Domain $domain, string $name, ?int $allocation = null, ?string $note = null): Record
+    /** $name is what the user typed on domains with typed names, and null on pattern and random domains. */
+    public function create(Server $server, Domain $domain, ?string $name, ?int $allocation = null, ?string $note = null): Record
     {
-        $name = mb_strtolower(mb_trim($name));
+        $automatic = $domain->naming()->isAutomatic();
 
         match (true) {
             ! $this->domainsFor($server)->contains('id', $domain->id) => throw new RuntimeException('That domain is not available for this server.'),
-            ! Names::isValidLabel($name) => throw new RuntimeException('Use lowercase letters, numbers and dashes only.'),
-            ($reason = Blacklist::reason($name, $this->settings->reservedNames(), $this->settings->reservedPatterns())) !== null => throw new RuntimeException($reason),
-            Record::query()->where('domain_id', $domain->id)->where('name', $name)->exists() => throw new RuntimeException("{$name}.{$domain->name} is already taken."),
+            $automatic && $name !== null => throw new RuntimeException("Names on {$domain->name} are picked automatically."),
+            ! $automatic && $name === null => throw new RuntimeException('Enter a name.'),
             $this->records($server)->count() >= $this->limit($server) => throw new RuntimeException('This server has reached its subdomain limit.'),
             default => $this->checkAllocation($server, $allocation),
         };
 
-        $record = Record::query()->create([
-            'domain_id' => $domain->id,
-            'server_id' => $server->id,
-            'server_uuid' => $server->uuid,
-            'allocation_id' => $allocation,
-            'name' => $name,
-            'note' => $note,
-        ]);
-        $record->setRelation('domain', $domain);
+        $record = $this->insert($server, $domain, $name, $allocation, $note);
 
         try {
             $this->sync($record, $server);
@@ -83,12 +81,67 @@ final readonly class Manager
         return $record;
     }
 
-    /** Points the subdomain at another allocation (null for the primary one) and updates DNS right away. */
-    public function update(Record $record, Server $server, ?int $allocation, ?string $note): void
+    /**
+     * The name the next subdomain of the server gets on a pattern or random domain. Random names are kept for a while,
+     * so the name a user sees before creating is the one they get.
+     */
+    public function suggestedName(Server $server, Domain $domain, bool $fresh = false): string
+    {
+        $naming = $domain->naming();
+        $values = ['username' => (string) $server->user?->username, 'server' => (string) $server->name, 'id' => (string) $server->uuidShort];
+        $isFree = fn (string $name): bool => $this->unavailable($domain, $name) === null;
+
+        if (! $naming->isRandom()) {
+            return $naming->pick($values, $isFree);
+        }
+
+        $key = self::nameKey($server, $domain);
+        $rule = hash('xxh128', (string) json_encode([$naming, $values]));
+        $kept = $fresh ? null : $this->cache->get($key);
+
+        if (is_array($kept) && ($kept['rule'] ?? null) === $rule && is_string($kept['name'] ?? null) && $isFree($kept['name'])) {
+            return $kept['name'];
+        }
+
+        $name = $naming->pick($values, $isFree);
+        $this->cache->put($key, ['rule' => $rule, 'name' => $name], self::KEEP_NAME);
+
+        return $name;
+    }
+
+    /**
+     * Points the subdomain at another allocation (null for the primary one), changes its note and, on domains with
+     * typed names, renames it. DNS is updated right away.
+     */
+    public function update(Record $record, Server $server, ?int $allocation, ?string $note, ?string $name = null): void
     {
         $this->checkAllocation($server, $allocation);
-        $record->update(['allocation_id' => $allocation, 'fallback_from' => null, 'note' => $note]);
-        $this->sync($record, $server);
+        $previous = $record->name;
+        $name = $name === null ? $previous : mb_strtolower(mb_trim($name));
+
+        if ($name !== $previous) {
+            match (true) {
+                $record->domain->naming()->isAutomatic() => throw new RuntimeException("Names on {$record->domain->name} are picked automatically, so this subdomain cannot be renamed."),
+                ! $this->domainsFor($server)->contains('id', $record->domain_id) => throw new RuntimeException('Its domain is no longer available for this server, so it cannot be renamed.'),
+                default => $this->checkedName($record->domain, $name, $record->id),
+            };
+        }
+
+        try {
+            $record->update(['name' => $name, 'allocation_id' => $allocation, 'fallback_from' => null, 'note' => $note]);
+        } catch (UniqueConstraintViolationException) {
+            throw new RuntimeException("{$record->domain->naming()->hostname($name)} is already taken.");
+        }
+
+        try {
+            $this->sync($record, $server);
+        } catch (Throwable $exception) {
+            if ($name !== $previous) {
+                $this->restoreName($record, $server, $previous);
+            }
+
+            throw $exception;
+        }
     }
 
     public function delete(Record $record): void
@@ -144,6 +197,11 @@ final readonly class Manager
         return ($record->allocation_id === null ? null : $server->allocations->firstWhere('id', $record->allocation_id)) ?? $server->allocation;
     }
 
+    private static function nameKey(Server $server, Domain $domain): string
+    {
+        return "ext.subdomains.name.{$server->id}.{$domain->id}";
+    }
+
     /**
      * @param  list<DnsRecord>  $stored
      * @param  list<DnsRecord>  $delete
@@ -175,6 +233,76 @@ final readonly class Manager
         $target = Target::for($node, (string) $server->node->fqdn, (string) $allocation->ip, $allocation->ip_alias, (int) $allocation->port, static fn (string $host): string => gethostbyname($host));
 
         return [$this->templates->forEgg($server->egg)->records($target, $record->name, $record->hostname(), $server->name), $target];
+    }
+
+    /** Inserts the subdomain. An automatic name someone else took in the meantime is picked again. */
+    private function insert(Server $server, Domain $domain, ?string $name, ?int $allocation, ?string $note): Record
+    {
+        $automatic = $domain->naming()->isAutomatic();
+
+        for ($attempt = 1; ; $attempt++) {
+            $label = $automatic ? $this->suggestedName($server, $domain, fresh: $attempt > 1) : $this->checkedName($domain, (string) $name);
+
+            try {
+                $record = Record::query()->create([
+                    'domain_id' => $domain->id,
+                    'server_id' => $server->id,
+                    'server_uuid' => $server->uuid,
+                    'allocation_id' => $allocation,
+                    'name' => $label,
+                    'note' => $note,
+                ]);
+            } catch (UniqueConstraintViolationException $exception) {
+                if (! $automatic || $attempt >= self::INSERT_ATTEMPTS) {
+                    throw new RuntimeException("{$domain->naming()->hostname($label)} is already taken.", previous: $exception);
+                }
+
+                continue;
+            }
+
+            if ($automatic) {
+                $this->cache->forget(self::nameKey($server, $domain));
+            }
+
+            return $record->setRelation('domain', $domain);
+        }
+    }
+
+    /** The name a user typed, checked and lowercased. */
+    private function checkedName(Domain $domain, string $name, ?int $except = null): string
+    {
+        $name = mb_strtolower(mb_trim($name));
+        $reason = $domain->naming()->problem($name) ?? $this->unavailable($domain, $name, $except);
+
+        return $reason === null ? $name : throw new RuntimeException($reason);
+    }
+
+    /**
+     * Why the name cannot be taken on the domain, or null when it is free. A name that is itself a range, like "serv"
+     * on example.com while serv.example.com is a domain, is reserved for the range.
+     */
+    private function unavailable(Domain $domain, string $name, ?int $except = null): ?string
+    {
+        $hostname = $domain->naming()->hostname($name);
+
+        return match (true) {
+            ($reason = Blacklist::reason($name, $this->settings->reservedNames(), $this->settings->reservedPatterns())) !== null => $reason,
+            Record::query()->where('domain_id', $domain->id)->where('name', $name)->when($except !== null, static fn ($query) => $query->whereKeyNot($except))->exists() => "{$hostname} is already taken.",
+            Domain::query()->where('name', $hostname)->exists() => "{$hostname} is reserved.",
+            default => null,
+        };
+    }
+
+    /** Puts the old name back after a rename DNS refused. */
+    private function restoreName(Record $record, Server $server, string $name): void
+    {
+        $record->update(['name' => $name]);
+
+        try {
+            $this->sync($record, $server);
+        } catch (Throwable) {
+            // The subdomain keeps the error, so its owner sees what went wrong.
+        }
     }
 
     private function fallBackWhenAllocationIsGone(Record $record, Server $server): void

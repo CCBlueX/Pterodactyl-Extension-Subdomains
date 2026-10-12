@@ -7,12 +7,14 @@ namespace Subdomains\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Subdomains\Dns\Providers;
 use Subdomains\Dns\Zone;
 use Subdomains\Models\Domain;
 use Subdomains\Models\Record;
 use Subdomains\Records\Manager;
+use Subdomains\Support\Naming;
 
 final class DomainController
 {
@@ -29,6 +31,8 @@ final class DomainController
             'eggs.*' => ['integer', 'exists:eggs,id'],
         ]);
         $name = mb_strtolower($data['name']);
+        $naming = $this->naming($request);
+        $this->checkNotASubdomain($name);
         $credentials = $this->credentials($request, $data['provider']);
         $zone = $this->zone($data['provider'], $name, $credentials);
 
@@ -39,7 +43,7 @@ final class DomainController
             'zone_name' => $zone->name,
             'credentials' => $credentials,
             'eggs' => self::eggs($data['eggs'] ?? []),
-        ]);
+        ] + $naming);
 
         return $this->admin->index();
     }
@@ -53,6 +57,7 @@ final class DomainController
             'eggs.*' => ['integer', 'exists:eggs,id'],
             'credentials' => ['sometimes', 'array'],
         ]);
+        $domain->fill($this->naming($request, $domain));
 
         if (array_key_exists('credentials', $data)) {
             $credentials = $this->credentials($request, $domain->provider, $domain);
@@ -87,7 +92,12 @@ final class DomainController
         $existing = isset($data['id']) ? Domain::query()->findOrFail($data['id']) : null;
         $zone = $this->zone($data['provider'], mb_strtolower($data['name']), $this->credentials($request, $data['provider'], $existing));
 
-        return new JsonResponse(['zone' => $zone->name, 'message' => "Connected. Records go into the zone {$zone->name}."]);
+        $name = mb_strtolower($data['name']);
+        $message = $zone->name === $name
+            ? "Connected. Records go into the zone {$zone->name}."
+            : "Connected. {$name} is a range in the zone {$zone->name}: users get names like play.{$name}.";
+
+        return new JsonResponse(['zone' => $zone->name, 'message' => $message]);
     }
 
     public function destroy(int $id): JsonResponse
@@ -111,6 +121,42 @@ final class DomainController
         $eggs = array_values(array_unique(array_map('intval', $eggs)));
 
         return $eggs === [] ? null : $eggs;
+    }
+
+    /**
+     * The naming fields, with the domain's current values for fields that were not sent. The pattern is only checked
+     * and saved when the domain uses it.
+     *
+     * @return array{naming_mode: string, naming_pattern: string|null, naming_length: int}
+     */
+    private function naming(Request $request, ?Domain $domain = null): array
+    {
+        $data = $request->validate([
+            'naming_mode' => ['sometimes', Rule::in(Naming::MODES)],
+            'naming_pattern' => ['sometimes', 'nullable', 'string', 'max:'.Naming::MAX_PATTERN],
+            'naming_length' => ['sometimes', 'integer', 'between:'.Naming::MIN_LENGTH.','.Naming::MAX_LENGTH],
+        ], [], ['naming_mode' => 'names', 'naming_pattern' => 'pattern', 'naming_length' => 'number of random characters']);
+        $mode = $data['naming_mode'] ?? $domain?->naming_mode ?? Naming::CUSTOM;
+        $pattern = $domain?->naming_pattern;
+
+        if ($mode === Naming::PATTERN) {
+            $pattern = mb_strtolower(mb_trim((string) ($data['naming_pattern'] ?? $pattern ?? ''))) ?: Naming::DEFAULT_PATTERN;
+
+            if (($problem = Naming::patternProblem($pattern)) !== null) {
+                throw ValidationException::withMessages(['naming_pattern' => $problem]);
+            }
+        }
+
+        return ['naming_mode' => $mode, 'naming_pattern' => $pattern, 'naming_length' => (int) ($data['naming_length'] ?? $domain?->naming_length ?? Naming::DEFAULT_LENGTH)];
+    }
+
+    /** A range like serv.example.com cannot be added while a server already has it as its subdomain. */
+    private function checkNotASubdomain(string $name): void
+    {
+        [$label, $parent] = explode('.', $name, 2);
+        $taken = Record::query()->where('name', $label)->whereHas('domain', static fn ($query) => $query->where('name', $parent))->exists();
+
+        abort_if($taken, 422, "A server already uses {$name} as its subdomain. Delete that subdomain first to use {$name} as a range.");
     }
 
     /**

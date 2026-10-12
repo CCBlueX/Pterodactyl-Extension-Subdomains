@@ -25,7 +25,7 @@ class SubdomainsProvider extends ExtensionProvider
         $this->registerPermissions('Subdomains.', [
             'read' => 'See the server\'s subdomains.',
             'create' => 'Create subdomains.',
-            'update' => 'Change which allocation a subdomain points to and its note.',
+            'update' => 'Rename subdomains (on domains where users type the name) and change their allocation and note.',
             'delete' => 'Delete subdomains.',
             'manage' => 'Create, change and delete subdomains (the permission from version 1.0).',
         ]);
