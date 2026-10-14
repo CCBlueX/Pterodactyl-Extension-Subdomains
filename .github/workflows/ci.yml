@@ -7,9 +7,9 @@ on:
   pull_request:
 
 env:
-  # Pterodactyl 2.0 is not released yet; pin the panel commit the extension is tested against.
+  # The Pterodactyl 2.0 release the extension is tested against.
   PANEL_REPOSITORY: pterodactyl/panel
-  PANEL_REF: 135b2985606f086fcd606367a0233b3d306ccd4b
+  PANEL_REF: v2.0.0-beta.2
 
 jobs:
   frontend:
