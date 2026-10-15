@@ -26,7 +26,7 @@ final class TargetTest extends TestCase
         $lookup = static fn (): string => '';
 
         $this->assertSame('203.0.113.8', Target::for(['mode' => 'alias'], 'node.example.net', '0.0.0.0', '203.0.113.8', 1, $lookup)->ipv4);
-        $this->assertSame('2001:db8::8', Target::for(['mode' => 'alias'], 'node.example.net', '0.0.0.0', '2001:db8::8', 1, $lookup)->ipv6);
+        $this->assertSame('2606:4700:4700::1111', Target::for(['mode' => 'alias'], 'node.example.net', '0.0.0.0', '2606:4700:4700::1111', 1, $lookup)->ipv6);
 
         $hostname = Target::for(['mode' => 'alias'], 'node.example.net', '0.0.0.0', 'Home.Example.org', 1, $lookup);
         $this->assertTrue($hostname->preferHostname);
