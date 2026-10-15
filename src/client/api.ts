@@ -170,16 +170,16 @@ export const keys = {
     adminServer: (id: number) => ['subdomains', 'admin', 'server', id] as const,
 };
 
-export const getSubdomains = async (identifier: string) => (await http.get<ServerSubdomains>(`${server(identifier)}/`)).data;
+export const getSubdomains = async (identifier: string) => (await http.get<ServerSubdomains>(server(identifier))).data;
 /** Leave the name out on pattern and random domains: the panel picks it. */
 export const createSubdomain = async (identifier: string, input: { domain: number; name?: string; allocation: number | null; note: string }) =>
-    (await http.post<ServerSubdomains>(`${server(identifier)}/`, input)).data;
+    (await http.post<ServerSubdomains>(server(identifier), input)).data;
 export const updateSubdomain = async (identifier: string, id: number, input: { name?: string; allocation: number | null; note: string }) =>
     (await http.patch<ServerSubdomains>(`${server(identifier)}/${id}`, input)).data;
 export const rollName = async (identifier: string, domain: number) => (await http.post<ServerSubdomains>(`${server(identifier)}/domains/${domain}/name`)).data;
 export const deleteSubdomain = async (identifier: string, id: number) => (await http.delete<ServerSubdomains>(`${server(identifier)}/${id}`)).data;
 
-export const getAdmin = async () => (await http.get<AdminOverview>(`${admin}/`)).data;
+export const getAdmin = async () => (await http.get<AdminOverview>(admin)).data;
 export const addDomain = async (input: DomainInput) => (await http.post<AdminOverview>(`${admin}/domains`, input)).data;
 export const updateDomain = async (id: number, input: Partial<Pick<DomainInput, 'credentials' | 'eggs'> & NamingInput> & { enabled?: boolean }) =>
     (await http.patch<AdminOverview>(`${admin}/domains/${id}`, input)).data;
