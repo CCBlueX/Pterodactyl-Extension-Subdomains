@@ -25,9 +25,21 @@ export interface Allocation {
     primary: boolean;
 }
 
+export type NamingMode = 'custom' | 'pattern' | 'random';
+
+export interface ServerDomain {
+    id: number;
+    name: string;
+    naming: NamingMode;
+    /** Whether a new name can be rolled before creating. */
+    random: boolean;
+    /** The name a new subdomain gets on pattern and random domains, null when none is free or users type it. */
+    preview: string | null;
+}
+
 export interface ServerSubdomains {
     records: SubdomainRecord[];
-    domains: { id: number; name: string }[];
+    domains: ServerDomain[];
     allocations: Allocation[];
     limit: number;
 }
@@ -71,6 +83,9 @@ export interface AdminDomain {
     zone: string;
     enabled: boolean;
     eggs: number[];
+    naming_mode: NamingMode;
+    naming_pattern: string;
+    naming_length: number;
     records: number;
     credentials: Record<string, string | null>;
     secrets: string[];
@@ -106,7 +121,13 @@ export interface AdminOverview {
     templates: Record<SharedTemplate, { template: TemplateData; custom: boolean }>;
 }
 
-export interface DomainInput {
+export interface NamingInput {
+    naming_mode: NamingMode;
+    naming_pattern: string;
+    naming_length: number;
+}
+
+export interface DomainInput extends NamingInput {
     name: string;
     provider: string;
     credentials: Record<string, string>;
@@ -149,16 +170,18 @@ export const keys = {
     adminServer: (id: number) => ['subdomains', 'admin', 'server', id] as const,
 };
 
-export const getSubdomains = async (identifier: string) => (await http.get<ServerSubdomains>(`${server(identifier)}`)).data;
-export const createSubdomain = async (identifier: string, input: { domain: number; name: string; allocation: number | null; note: string }) =>
-    (await http.post<ServerSubdomains>(`${server(identifier)}`, input)).data;
-export const updateSubdomain = async (identifier: string, id: number, input: { allocation: number | null; note: string }) =>
+export const getSubdomains = async (identifier: string) => (await http.get<ServerSubdomains>(server(identifier))).data;
+/** Leave the name out on pattern and random domains: the panel picks it. */
+export const createSubdomain = async (identifier: string, input: { domain: number; name?: string; allocation: number | null; note: string }) =>
+    (await http.post<ServerSubdomains>(server(identifier), input)).data;
+export const updateSubdomain = async (identifier: string, id: number, input: { name?: string; allocation: number | null; note: string }) =>
     (await http.patch<ServerSubdomains>(`${server(identifier)}/${id}`, input)).data;
+export const rollName = async (identifier: string, domain: number) => (await http.post<ServerSubdomains>(`${server(identifier)}/domains/${domain}/name`)).data;
 export const deleteSubdomain = async (identifier: string, id: number) => (await http.delete<ServerSubdomains>(`${server(identifier)}/${id}`)).data;
 
-export const getAdmin = async () => (await http.get<AdminOverview>(`${admin}`)).data;
+export const getAdmin = async () => (await http.get<AdminOverview>(admin)).data;
 export const addDomain = async (input: DomainInput) => (await http.post<AdminOverview>(`${admin}/domains`, input)).data;
-export const updateDomain = async (id: number, input: Partial<Pick<DomainInput, 'credentials' | 'eggs'>> & { enabled?: boolean }) =>
+export const updateDomain = async (id: number, input: Partial<Pick<DomainInput, 'credentials' | 'eggs'> & NamingInput> & { enabled?: boolean }) =>
     (await http.patch<AdminOverview>(`${admin}/domains/${id}`, input)).data;
 export const testDomain = async (input: DomainInput & { id?: number }) => (await http.post<{ zone: string; message: string }>(`${admin}/domains/test`, input)).data;
 export const removeDomain = async (id: number) => (await http.delete<AdminOverview>(`${admin}/domains/${id}`)).data;

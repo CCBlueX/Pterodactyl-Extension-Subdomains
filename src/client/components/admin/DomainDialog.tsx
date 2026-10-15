@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Dialog, Input, Label, Select, httpErrorToHuman, toast } from '@pterodactyl/sdk';
-import { addDomain, testDomain, updateDomain, type AdminDomain, type AdminOverview } from '../../api';
+import { addDomain, testDomain, updateDomain, type AdminDomain, type AdminOverview, type NamingInput } from '../../api';
+import { DEFAULT_PATTERN, MAX_LENGTH, MIN_LENGTH } from '../../naming';
+import NamingFields from './NamingFields';
 
 interface Props {
     domain: AdminDomain | null;
@@ -16,9 +18,14 @@ export default function DomainDialog({ domain, overview, onClose, onSaved }: Pro
     const [initial] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(domain?.credentials ?? {}).map(([key, value]) => [key, value ?? ''])));
     const [credentials, setCredentials] = useState(initial);
     const [eggs, setEggs] = useState(domain?.eggs ?? []);
+    const [naming, setNaming] = useState<NamingInput>({
+        naming_mode: domain?.naming_mode ?? 'custom',
+        naming_pattern: domain?.naming_pattern ?? DEFAULT_PATTERN,
+        naming_length: domain?.naming_length ?? 8,
+    });
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
     const definition = overview.providers.find((item) => item.id === provider);
-    const input = { name, provider, credentials, eggs };
+    const input = { name, provider, credentials, eggs, ...naming };
 
     const testing = useMutation({
         mutationFn: () => testDomain({ ...input, id: domain?.id }),
@@ -27,7 +34,7 @@ export default function DomainDialog({ domain, overview, onClose, onSaved }: Pro
     });
     const saving = useMutation({
         // Unchanged credentials are left out, so saving only the eggs does not ask the provider again.
-        mutationFn: () => (domain ? updateDomain(domain.id, changed ? { credentials, eggs } : { eggs }) : addDomain(input)),
+        mutationFn: () => (domain ? updateDomain(domain.id, changed ? { credentials, eggs, ...naming } : { eggs, ...naming }) : addDomain(input)),
         onSuccess: (data) => {
             onSaved(data);
             onClose();
@@ -38,6 +45,7 @@ export default function DomainDialog({ domain, overview, onClose, onSaved }: Pro
     const changed = Object.keys({ ...initial, ...credentials }).some((key) => (credentials[key] ?? '') !== (initial[key] ?? ''));
     const pending = testing.isPending || saving.isPending;
     const missing = definition?.fields.some((field) => field.required && !credentials[field.key]?.trim() && !(field.secret && domain?.secrets.includes(field.key)));
+    const invalid = missing || (naming.naming_mode === 'pattern' && naming.naming_pattern.trim() === '') || naming.naming_length < MIN_LENGTH || naming.naming_length > MAX_LENGTH;
 
     return (
         <Dialog open onClose={onClose} title={domain ? `Edit ${domain.name}` : 'Add domain'} preventExternalClose={pending}>
@@ -50,8 +58,15 @@ export default function DomainDialog({ domain, overview, onClose, onSaved }: Pro
             >
                 <div className='sub:grid sub:gap-4 sub:sm:grid-cols-2'>
                     <div>
-                        <Label htmlFor='sub-domain-name'>Domain</Label>
-                        <Input id='sub-domain-name' placeholder='example.com' disabled={domain !== null} value={name} onChange={(event) => (setName(event.currentTarget.value.trim().toLowerCase()), setResult(null))} />
+                        <Label htmlFor='sub-domain-name'>Domain or range</Label>
+                        <Input
+                            id='sub-domain-name'
+                            placeholder='serv.example.com'
+                            disabled={domain !== null}
+                            value={name}
+                            onChange={(event) => (setName(event.currentTarget.value.trim().toLowerCase()), setResult(null))}
+                        />
+                        <p className='sub:mt-1 sub:text-xs sub:text-muted-foreground'>e.g. play.example.com or serv.example.com</p>
                     </div>
                     <div>
                         <Label htmlFor='sub-domain-provider'>DNS provider</Label>
@@ -85,6 +100,7 @@ export default function DomainDialog({ domain, overview, onClose, onSaved }: Pro
                         </div>
                     );
                 })}
+                <NamingFields value={naming} domain={name} editing={domain !== null} onChange={setNaming} />
                 <div>
                     <Label htmlFor='sub-domain-eggs'>Eggs</Label>
                     <Select
@@ -106,7 +122,7 @@ export default function DomainDialog({ domain, overview, onClose, onSaved }: Pro
                     <Button.Text disabled={pending || name === '' || missing} isLoading={testing.isPending} onClick={() => testing.mutate()}>
                         Test connection
                     </Button.Text>
-                    <Button type='submit' disabled={pending || name === '' || missing} isLoading={saving.isPending}>
+                    <Button type='submit' disabled={pending || name === '' || invalid} isLoading={saving.isPending}>
                         {domain ? 'Save' : 'Add domain'}
                     </Button>
                 </Dialog.Footer>

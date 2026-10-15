@@ -7,7 +7,22 @@ import { Template } from './fixtures';
 import AdminScreen from './AdminScreen';
 
 const overview: AdminOverview = {
-    domains: [{ id: 1, name: 'mc.example.com', provider: 'cloudflare', zone: 'example.com', enabled: true, eggs: [5], records: 2, credentials: { token: null }, secrets: ['token'] }],
+    domains: [
+        {
+            id: 1,
+            name: 'mc.example.com',
+            provider: 'cloudflare',
+            zone: 'example.com',
+            enabled: true,
+            eggs: [5],
+            naming_mode: 'pattern',
+            naming_pattern: '{username}-{server}',
+            naming_length: 8,
+            records: 2,
+            credentials: { token: null },
+            secrets: ['token'],
+        },
+    ],
     nodes: [{ id: 1, name: 'Node 1', fqdn: 'node1.example.net', mode: 'ip', ipv4: null, ipv6: null, hostname: null }],
     eggs: [
         { id: 5, name: 'Paper', minecraft: true, override: false },
@@ -86,7 +101,8 @@ test('shows domains without their secrets', async () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Domains' }));
 
     expect(await screen.findByText('mc.example.com')).toBeTruthy();
-    expect(screen.getByText('in zone example.com')).toBeTruthy();
+    expect(screen.getByText('Range in zone example.com')).toBeTruthy();
+    expect(screen.getByText('{username}-{server}')).toBeTruthy();
     expect(screen.getByText('Cloudflare')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -95,6 +111,23 @@ test('shows domains without their secrets', async () => {
     expect(token.value).toBe('');
     expect(token.placeholder).toBe('Saved. Leave empty to keep it.');
     expect(screen.getByRole('button', { name: 'Test connection' })).toBeTruthy();
+});
+
+test('edits a range and shows a live example of its names', async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Domains' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+
+    expect(((await screen.findByLabelText('Domain or range')) as HTMLInputElement).value).toBe('mc.example.com');
+    expect(screen.getByText(/e\.g\. play\.example\.com or serv\.example\.com/)).toBeTruthy();
+    expect(screen.getByText('steve-survival-world.mc.example.com')).toBeTruthy();
+    expect(screen.queryByLabelText('Characters')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Pattern'), { target: { value: 'mc-{id}-{random}' } });
+
+    expect(await screen.findByText('mc-7unrl0q1-k7m2x9qa.mc.example.com')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Characters'), { target: { value: '4' } });
+    expect(await screen.findByText('mc-7unrl0q1-k7m2.mc.example.com')).toBeTruthy();
 });
 
 test('documents placeholders and previews the minecraft template', async () => {

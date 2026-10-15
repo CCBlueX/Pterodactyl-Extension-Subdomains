@@ -2,10 +2,10 @@
     "$schema": "./node_modules/@pterodactyl/sdk/manifest.schema.json",
     "id": "subdomains",
     "name": "Subdomains",
-    "version": "1.1.0",
+    "version": "1.2.1",
     "requires": {
         "panel": "^2.0.0-dev",
-        "sdk": "^2.0.0-beta.4",
+        "sdk": "^2.0.0-beta.6",
         "php": "^8.3"
     },
     "description": "Let users create subdomains for their servers on your Cloudflare, Bunny DNS or PowerDNS domains, with SRV records and per-egg templates.",

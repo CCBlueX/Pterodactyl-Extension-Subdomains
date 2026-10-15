@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Dialog, Label, Select, Switch, Table, TitledGreyBox, httpErrorToHuman, toast } from '@pterodactyl/sdk';
 import { removeDomain, saveAllowedEggs, updateDomain, type AdminDomain, type AdminOverview } from '../../api';
+import { namingSummary } from '../../naming';
 import DomainDialog from './DomainDialog';
 
 interface Props {
@@ -30,7 +31,7 @@ export default function Domains({ overview, onSaved }: Props) {
         <div className='sub:grid sub:gap-6'>
             <TitledGreyBox title='Domains'>
                 <div className='sub:mb-4 sub:flex sub:items-center sub:justify-between sub:gap-3'>
-                    <p className='sub:text-sm sub:text-muted-foreground'>Each domain uses its own DNS provider and credentials.</p>
+                    <p className='sub:text-sm sub:text-muted-foreground'>Domains and ranges like serv.example.com, each with its own DNS provider and credentials.</p>
                     <Button className='sub:shrink-0' onClick={() => setEditing('new')}>
                         Add domain
                     </Button>
@@ -46,11 +47,18 @@ export default function Domains({ overview, onSaved }: Props) {
                             cell: (row) => (
                                 <div className='sub:min-w-0'>
                                     <p className='sub:font-mono sub:text-foreground'>{row.name}</p>
-                                    {row.zone !== row.name && <p className='sub:text-xs sub:text-muted-foreground'>in zone {row.zone}</p>}
+                                    {row.zone !== row.name && <p className='sub:text-xs sub:text-muted-foreground'>Range in zone {row.zone}</p>}
                                 </div>
                             ),
                         },
                         { id: 'provider', label: 'Provider', cell: (row) => providerLabel(row.provider) },
+                        {
+                            id: 'naming',
+                            label: 'Names',
+                            cell: (row) => (
+                                <span className={`sub:text-sm sub:text-muted-foreground ${row.naming_mode === 'pattern' ? 'sub:font-mono' : ''}`}>{namingSummary(row)}</span>
+                            ),
+                        },
                         { id: 'eggs', label: 'Eggs', cell: (row) => <span className='sub:text-sm sub:text-muted-foreground'>{eggSummary(row.eggs, overview)}</span> },
                         { id: 'records', label: 'Subdomains', cell: (row) => row.records },
                         {
