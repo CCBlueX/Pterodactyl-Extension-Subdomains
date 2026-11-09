@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CopyOnClick, NamedIcon, Table, Tooltip, type TableColumn } from '@pterodactyl/sdk';
+import { CopyOnClick, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, NamedIcon, Table, Tooltip, type TableColumn } from '@pterodactyl/sdk';
 import type { SubdomainRecord } from '../api';
 
 const tones = {
@@ -10,6 +10,21 @@ const tones = {
 
 export function Badge({ tone = 'primary', children }: { tone?: keyof typeof tones; children: ReactNode }) {
     return <span className={`sub:rounded-full sub:px-2 sub:py-0.5 sub:text-xs sub:whitespace-nowrap ${tones[tone]}`}>{children}</span>;
+}
+
+/** The empty state of a subdomain or domain list. */
+export function NoRecords({ icon = 'globe', title, text }: { icon?: string; title: string; text: string }) {
+    return (
+        <Empty>
+            <EmptyHeader>
+                <EmptyMedia variant='icon'>
+                    <NamedIcon name={icon} />
+                </EmptyMedia>
+                <EmptyTitle>{title}</EmptyTitle>
+                <EmptyDescription>{text}</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    );
 }
 
 export function Address({ hostname }: { hostname: string }) {
@@ -53,7 +68,7 @@ export function PointsTo({ record }: { record: SubdomainRecord }) {
 
 interface Props {
     records: SubdomainRecord[];
-    empty: string;
+    empty: ReactNode;
     columns?: TableColumn<SubdomainRecord>[];
     actions?: (record: SubdomainRecord) => ReactNode;
 }

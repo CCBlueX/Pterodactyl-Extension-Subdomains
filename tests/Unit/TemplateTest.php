@@ -75,4 +75,11 @@ final class TemplateTest extends TestCase
         $this->assertStringContainsString('TTL', (string) (new Template(ttl: 30))->problem());
         $this->assertStringContainsString('SRV port', (string) (new Template(srvPort: 'abc'))->problem());
     }
+
+    public function test_domain_and_server_placeholders(): void
+    {
+        $records = (new Template(comment: '{server} on {domain}'))->records(new Target('203.0.113.7', null, null, 25565), 'play', 'play.serv.example.com', 'My Survival!');
+
+        $this->assertSame('my-survival on serv.example.com', $records[0]->comment);
+    }
 }

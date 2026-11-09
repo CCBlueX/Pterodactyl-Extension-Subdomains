@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Input, Label, Select, Switch } from '@pterodactyl/sdk';
 import type { TemplateData } from '../api';
-import { ADDRESS_OPTIONS, PLACEHOLDERS, TTL_OPTIONS, commentPreview, previewRecords } from '../template';
+import { ADDRESS_OPTIONS, PLACEHOLDERS, PRESETS, TTL_OPTIONS, commentPreview, previewRecords } from '../template';
 
 interface Props {
     id: string;
@@ -25,10 +25,30 @@ function Field({ id, label, help, children }: { id: string; label: string; help?
 export default function TemplateForm({ id, value, onChange, disabled }: Props) {
     const set = (changes: Partial<TemplateData>) => onChange({ ...value, ...changes });
     const ttlOptions = TTL_OPTIONS.some((option) => option.value === value.ttl) ? TTL_OPTIONS : [...TTL_OPTIONS, { value: value.ttl, label: `${value.ttl} seconds` }];
+    const [preset, setPreset] = useState<string | null>(null);
+    const applied = PRESETS.find((item) => item.value === preset);
 
     return (
-        <div className='sub:grid sub:gap-4'>
-            <div className='sub:grid sub:gap-4 sub:sm:grid-cols-2'>
+        <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-4'>
+            {!disabled && (
+                <Field id={`${id}-preset`} label='Start from a preset' help={applied ? applied.help : 'Fills in the record fields below. TTL and comment stay as they are.'}>
+                    <Select
+                        id={`${id}-preset`}
+                        placeholder='Pick a game'
+                        value={preset}
+                        onChange={(choice) => {
+                            const item = PRESETS.find((entry) => entry.value === choice);
+                            setPreset(item?.value ?? null);
+
+                            if (item) {
+                                set(item.fields);
+                            }
+                        }}
+                        options={PRESETS.map((item) => ({ value: item.value, label: item.label }))}
+                    />
+                </Field>
+            )}
+            <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-4 sub:sm:grid-cols-2'>
                 <Field id={`${id}-address`} label='Address records' help='CNAME targets come from the node, see Nodes.'>
                     <Select id={`${id}-address`} disabled={disabled} value={value.address} onChange={(address) => set({ address: address as TemplateData['address'] })} options={ADDRESS_OPTIONS} />
                 </Field>
@@ -51,7 +71,7 @@ export default function TemplateForm({ id, value, onChange, disabled }: Props) {
                 onChange={(srv) => set({ srv, proxied: srv ? false : value.proxied })}
             />
             {value.srv && (
-                <div className='sub:grid sub:gap-4 sub:rounded-sm sub:bg-sunken sub:p-4 sub:sm:grid-cols-3'>
+                <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-4 sub:rounded-sm sub:bg-sunken sub:p-4 sub:sm:grid-cols-3'>
                     <Field id={`${id}-service`} label='Service'>
                         <Input id={`${id}-service`} disabled={disabled} placeholder='_minecraft' value={value.service} onChange={(event) => set({ service: event.currentTarget.value.trim() })} />
                     </Field>
@@ -100,10 +120,10 @@ export default function TemplateForm({ id, value, onChange, disabled }: Props) {
             >
                 <Input id={`${id}-comment`} disabled={disabled} maxLength={100} placeholder='{server_name}' value={value.comment} onChange={(event) => set({ comment: event.currentTarget.value })} />
             </Field>
-            <div className='sub:grid sub:gap-3 sub:rounded-sm sub:border sub:border-border sub:p-4 sub:text-xs'>
+            <div className='sub:grid sub:min-w-0 sub:grid-cols-[minmax(0,1fr)] sub:gap-3 sub:rounded-sm sub:border sub:border-border sub:p-4 sub:text-xs'>
                 <div>
                     <p className='sub:mb-1 sub:font-medium sub:text-foreground'>Placeholders</p>
-                    <ul className='sub:grid sub:gap-0.5 sub:text-muted-foreground sub:sm:grid-cols-2'>
+                    <ul className='sub:grid sub:gap-0.5 sub:break-words sub:text-muted-foreground sub:sm:grid-cols-2'>
                         {PLACEHOLDERS.map((placeholder) => (
                             <li key={placeholder.key}>
                                 <code className='sub:font-mono sub:text-foreground'>{placeholder.key}</code> {placeholder.help}

@@ -31,7 +31,7 @@ class SubdomainsProvider extends ExtensionProvider
         ]);
 
         $this->registerSettings(new ExtensionSettingsDefinition($this->settings(), [
-            ExtensionSettingDefinition::make('default_limit', 'default_limit', 1, ['required', 'integer', 'min:0', 'max:100'])
+            ExtensionSettingDefinition::make('default_limit', 'default_limit', 1, ['required', 'integer', 'min:-1', 'max:100'])
                 ->label('Subdomains per server')
                 ->help('Can be changed for single servers on their admin page.')
                 ->field('number'),

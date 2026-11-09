@@ -90,9 +90,17 @@ final class DomainController
             'provider' => ['required', Rule::in(array_keys(Providers::DEFINITIONS))],
         ]);
         $existing = isset($data['id']) ? Domain::query()->findOrFail($data['id']) : null;
-        $zone = $this->zone($data['provider'], mb_strtolower($data['name']), $this->credentials($request, $data['provider'], $existing));
-
+        $credentials = $this->credentials($request, $data['provider'], $existing);
         $name = mb_strtolower($data['name']);
+        $zone = $this->zone($data['provider'], $name, $credentials);
+
+        // Finding the zone only needs zone access, so the records are read too to catch tokens without DNS access.
+        try {
+            $this->providers->make($data['provider'], $credentials)->typesAt($zone, $name);
+        } catch (RuntimeException $exception) {
+            abort(422, "Found the zone {$zone->name}, but reading its records failed: {$exception->getMessage()}");
+        }
+
         $message = $zone->name === $name
             ? "Connected. Records go into the zone {$zone->name}."
             : "Connected. {$name} is a range in the zone {$zone->name}: users get names like play.{$name}.";

@@ -17,7 +17,7 @@ final readonly class Template
 
     public const array PROTOCOLS = ['tcp', 'udp'];
 
-    public const array PLACEHOLDERS = ['name', 'fqdn', 'ip', 'port', 'server_name'];
+    public const array PLACEHOLDERS = ['name', 'domain', 'fqdn', 'ip', 'port', 'server', 'server_name'];
 
     public const int MAX_TTL = 86400;
 
@@ -124,7 +124,15 @@ final readonly class Template
      */
     public function records(Target $target, string $name, string $fqdn, string $serverName): array
     {
-        $values = ['name' => $name, 'fqdn' => $fqdn, 'ip' => (string) $target->address(), 'port' => (string) $target->port, 'server_name' => $serverName];
+        $values = [
+            'name' => $name,
+            'domain' => str_starts_with($fqdn, "{$name}.") ? mb_substr($fqdn, mb_strlen($name) + 1) : $fqdn,
+            'fqdn' => $fqdn,
+            'ip' => (string) $target->address(),
+            'port' => (string) $target->port,
+            'server' => Naming::slugify($serverName),
+            'server_name' => $serverName,
+        ];
         $comment = mb_substr(self::render($this->comment, $values), 0, 100);
         $proxied = $this->proxied && ! $this->srv;
         $records = [];

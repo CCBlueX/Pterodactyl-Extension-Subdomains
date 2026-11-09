@@ -18,6 +18,8 @@ use Subdomains\Models\NodeTarget;
 use Subdomains\Models\Record;
 use Subdomains\Settings;
 use Subdomains\Support\Blacklist;
+use Subdomains\Support\Conflict;
+use Subdomains\Support\Limits;
 use Subdomains\Support\Target;
 use Throwable;
 
@@ -60,7 +62,7 @@ final readonly class Manager
             ! $this->domainsFor($server)->contains('id', $domain->id) => throw new RuntimeException('That domain is not available for this server.'),
             $automatic && $name !== null => throw new RuntimeException("Names on {$domain->name} are picked automatically."),
             ! $automatic && $name === null => throw new RuntimeException('Enter a name.'),
-            $this->records($server)->count() >= $this->limit($server) => throw new RuntimeException('This server has reached its subdomain limit.'),
+            Limits::isFull($this->records($server)->count(), $this->limit($server)) => throw new RuntimeException('This server has reached its subdomain limit.'),
             default => $this->checkAllocation($server, $allocation),
         };
 
@@ -125,6 +127,11 @@ final readonly class Manager
                 ! $this->domainsFor($server)->contains('id', $record->domain_id) => throw new RuntimeException('Its domain is no longer available for this server, so it cannot be renamed.'),
                 default => $this->checkedName($record->domain, $name, $record->id),
             };
+            $conflict = $this->conflictAtProvider($record->domain, $name);
+
+            if ($conflict !== null) {
+                throw new RuntimeException($conflict);
+            }
         }
 
         try {
@@ -242,6 +249,15 @@ final readonly class Manager
 
         for ($attempt = 1; ; $attempt++) {
             $label = $automatic ? $this->suggestedName($server, $domain, fresh: $attempt > 1) : $this->checkedName($domain, (string) $name);
+            $conflict = $this->conflictAtProvider($domain, $label);
+
+            if ($conflict !== null) {
+                if (! $automatic || $attempt >= self::INSERT_ATTEMPTS) {
+                    throw new RuntimeException($conflict);
+                }
+
+                continue;
+            }
 
             try {
                 $record = Record::query()->create([
@@ -275,6 +291,14 @@ final readonly class Manager
         $reason = $domain->naming()->problem($name) ?? $this->unavailable($domain, $name, $except);
 
         return $reason === null ? $name : throw new RuntimeException($reason);
+    }
+
+    /** Why the name cannot be used because the provider already has records there, made by hand or by another tool. */
+    private function conflictAtProvider(Domain $domain, string $name): ?string
+    {
+        $hostname = $domain->naming()->hostname($name);
+
+        return Conflict::reason($hostname, $this->providers->for($domain)->typesAt($domain->zone(), $hostname));
     }
 
     /**

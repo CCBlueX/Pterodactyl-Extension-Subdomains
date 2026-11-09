@@ -50,6 +50,20 @@ final readonly class Bunny implements Provider
         throw new DnsException("Bunny DNS has no zone for {$domain} in this account.");
     }
 
+    public function typesAt(Zone $zone, string $name): array
+    {
+        $relative = mb_strtolower($zone->relative($name));
+        $types = [];
+
+        foreach ((array) ($this->send('GET', "/dnszone/{$zone->id}")['Records'] ?? []) as $item) {
+            if (is_array($item) && mb_strtolower((string) ($item['Name'] ?? '')) === $relative) {
+                $types[] = array_search((int) ($item['Type'] ?? -1), self::TYPES, true) ?: 'type '.(int) ($item['Type'] ?? -1);
+            }
+        }
+
+        return array_values(array_unique($types));
+    }
+
     public function create(Zone $zone, DnsRecord $record): DnsRecord
     {
         return $record->withId((string) ($this->send('PUT', "/dnszone/{$zone->id}/records", self::payload($zone, $record))['Id'] ?? ''));

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Dialog, Input, PanelLink, Spinner, TitledGreyBox, httpErrorToHuman, toast } from '@pterodactyl/sdk';
+import { Button, Dialog, Input, PanelLink, ServerError, Spinner, TitledGreyBox, httpErrorToHuman, toast } from '@pterodactyl/sdk';
 import { deleteRecord, getRecords, keys, type AdminRecord, type SubdomainRecord } from '../../api';
-import RecordsTable from '../RecordsTable';
+import RecordsTable, { NoRecords } from '../RecordsTable';
 
 export default function AllRecords() {
     const queryClient = useQueryClient();
@@ -37,12 +37,12 @@ export default function AllRecords() {
         <TitledGreyBox title='All subdomains'>
             <Input aria-label='Search subdomains' className='sub:mb-4' placeholder='Search by address, server or note' value={input} onChange={(event) => setInput(event.currentTarget.value)} />
             {!records.data ? (
-                records.isError ? <p className='sub:text-sm sub:text-destructive'>{httpErrorToHuman(records.error)}</p> : <Spinner centered />
+                records.isError ? <ServerError title='Could not load subdomains' message={httpErrorToHuman(records.error)} onRetry={() => records.refetch()} /> : <Spinner centered />
             ) : (
                 <>
                     <RecordsTable
                         records={rows}
-                        empty={search ? 'No subdomains match your search.' : 'No subdomains yet.'}
+                        empty={search ? <NoRecords icon='search' title='No matches' text='No subdomains match your search.' /> : <NoRecords title='No subdomains yet' text='Subdomains that users create show up here.' />}
                         columns={[
                             {
                                 id: 'server',

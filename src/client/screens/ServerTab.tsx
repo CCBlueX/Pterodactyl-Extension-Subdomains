@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Spinner, TitledGreyBox, httpErrorToHuman, toast, useCurrentResource } from '@pterodactyl/sdk';
+import { Button, ServerError, Spinner, TitledGreyBox, httpErrorToHuman, toast, useCurrentResource } from '@pterodactyl/sdk';
 import { getAdminServer, keys, resync } from '../api';
 import LimitBox from '../components/LimitBox';
-import RecordsTable from '../components/RecordsTable';
+import RecordsTable, { NoRecords } from '../components/RecordsTable';
 
 export default function ServerTab() {
     const context = useCurrentResource();
@@ -20,7 +20,7 @@ export default function ServerTab() {
     });
 
     if (!server.data) {
-        return <Spinner centered />;
+        return server.isError ? <ServerError title='Could not load subdomains' message={httpErrorToHuman(server.error)} onRetry={() => server.refetch()} /> : <Spinner centered />;
     }
 
     return (
@@ -32,7 +32,7 @@ export default function ServerTab() {
                         Recreate DNS records
                     </Button.Text>
                 </div>
-                <RecordsTable records={server.data.records} empty='This server has no subdomains.' />
+                <RecordsTable records={server.data.records} empty={<NoRecords title='No subdomains' text='This server has no subdomains.' />} />
             </TitledGreyBox>
         </div>
     );

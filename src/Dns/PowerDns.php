@@ -42,6 +42,21 @@ final readonly class PowerDns implements Provider
         throw new DnsException("PowerDNS has no zone for {$domain}.");
     }
 
+    public function typesAt(Zone $zone, string $name): array
+    {
+        $name = mb_strtolower(self::absolute($name));
+        $types = [];
+
+        // Older PowerDNS versions ignore the filter and return every RRset, so it is filtered here too.
+        foreach ((array) ($this->send('GET', '/zones/'.rawurlencode($zone->id).'?'.http_build_query(['rrsets' => 'true', 'rrset_name' => $name]))['rrsets'] ?? []) as $rrset) {
+            if (is_array($rrset) && mb_strtolower((string) ($rrset['name'] ?? '')) === $name && ($rrset['records'] ?? []) !== []) {
+                $types[] = (string) ($rrset['type'] ?? '');
+            }
+        }
+
+        return array_values(array_unique($types));
+    }
+
     public function create(Zone $zone, DnsRecord $record): DnsRecord
     {
         $content = self::content($record);

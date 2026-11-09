@@ -60,4 +60,16 @@ final class BunnyTest extends TestCase
 
         (new Bunny(new FakeTransport([new Response(401)]), 'wrong'))->findZone('example.com');
     }
+
+    public function test_lists_the_record_types_at_a_name(): void
+    {
+        $http = new FakeTransport([new Response(200, ['Records' => [
+            ['Type' => 0, 'Name' => 'Play'], ['Type' => 3, 'Name' => 'play'], ['Type' => 0, 'Name' => 'play'], ['Type' => 4, 'Name' => 'play'], ['Type' => 1, 'Name' => 'other'],
+        ]])]);
+
+        $types = (new Bunny($http, 'key'))->typesAt(new Zone('34', 'example.com'), 'play.example.com');
+
+        $this->assertSame(['A', 'TXT', 'type 4'], $types);
+        $this->assertSame('https://api.bunny.net/dnszone/34', $http->requests[0]['url']);
+    }
 }

@@ -44,6 +44,13 @@ final readonly class Cloudflare implements Provider
         throw new DnsException("Cloudflare has no zone for {$domain} that this API token can access.");
     }
 
+    public function typesAt(Zone $zone, string $name): array
+    {
+        $records = $this->send('GET', "/zones/{$zone->id}/dns_records?".http_build_query(['name' => mb_strtolower($name), 'per_page' => 100]));
+
+        return array_values(array_unique(array_map(static fn (array $item): string => (string) ($item['type'] ?? ''), array_filter($records, is_array(...)))));
+    }
+
     public function create(Zone $zone, DnsRecord $record): DnsRecord
     {
         return $record->withId((string) ($this->send('POST', "/zones/{$zone->id}/dns_records", self::payload($record))['id'] ?? ''));

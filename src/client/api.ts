@@ -41,8 +41,13 @@ export interface ServerSubdomains {
     records: SubdomainRecord[];
     domains: ServerDomain[];
     allocations: Allocation[];
+    /** -1 is unlimited, 0 allows none. */
     limit: number;
 }
+
+export const UNLIMITED = -1;
+export const limitText = (limit: number) => (limit === UNLIMITED ? 'unlimited' : String(limit));
+export const isFull = (count: number, limit: number) => limit !== UNLIMITED && count >= limit;
 
 export type AddressType = 'ip' | 'a' | 'aaaa' | 'cname';
 

@@ -103,4 +103,17 @@ final class PowerDnsTest extends TestCase
         $http = new FakeTransport([new Response(200, ['rrsets' => []]), new Response(422, ['error' => 'RRset play.example.com. IN CNAME: Conflicts with pre-existing RRset'])]);
         (new PowerDns($http, 'https://ns1.example.net:8081', 'key'))->create(new Zone('example.com.', 'example.com'), new DnsRecord('CNAME', 'play.example.com', 'node.example.net'));
     }
+
+    public function test_lists_the_record_types_at_a_name_and_skips_empty_and_other_rrsets(): void
+    {
+        $http = new FakeTransport([new Response(200, ['rrsets' => [
+            ['name' => 'play.example.com.', 'type' => 'A', 'records' => [['content' => '203.0.113.7']]],
+            ['name' => 'play.example.com.', 'type' => 'TXT', 'records' => []],
+            ['name' => 'example.com.', 'type' => 'SOA', 'records' => [['content' => 'ns1']]],
+        ]])]);
+
+        $types = (new PowerDns($http, 'https://ns1.example.net:8081', 'key'))->typesAt(new Zone('example.com.', 'example.com'), 'play.example.com');
+
+        $this->assertSame(['A'], $types);
+    }
 }

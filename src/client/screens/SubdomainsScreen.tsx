@@ -17,8 +17,8 @@ import {
     useCurrentServerRequired,
     useServerPermission,
 } from '@pterodactyl/sdk';
-import { createSubdomain, deleteSubdomain, getSubdomains, keys, rollName, updateSubdomain, type Allocation, type ServerSubdomains, type SubdomainRecord } from '../api';
-import RecordsTable from '../components/RecordsTable';
+import { UNLIMITED, createSubdomain, deleteSubdomain, getSubdomains, keys, rollName, updateSubdomain, type Allocation, type ServerSubdomains, type SubdomainRecord, isFull } from '../api';
+import RecordsTable, { NoRecords } from '../components/RecordsTable';
 
 const PRIMARY = 0;
 
@@ -58,7 +58,7 @@ export default function SubdomainsScreen() {
     }
 
     const { records, domains, limit } = subdomains.data;
-    const full = records.length >= limit;
+    const full = isFull(records.length, limit);
 
     return (
         <ServerContentBlock title='Subdomains'>
@@ -71,11 +71,17 @@ export default function SubdomainsScreen() {
             )}
             {canCreate && domains.length > 0 && !full && <CreateForm data={subdomains.data} identifier={identifier} onData={update} />}
             <p className='sub:mb-2 sub:text-sm sub:text-muted-foreground'>
-                {records.length} of {limit} subdomains are in use.
+                {limit === UNLIMITED ? `${records.length} subdomains are in use.` : `${records.length} of ${limit} subdomains are in use.`}
             </p>
             <RecordsTable
                 records={records}
-                empty={domains.length === 0 ? 'No domains are set up for this server yet.' : 'No subdomains yet.'}
+                empty={
+                    domains.length === 0 ? (
+                        <NoRecords title='No domains available' text='No domains are set up for this server yet. Ask an administrator.' />
+                    ) : (
+                        <NoRecords title='No subdomains yet' text='Create one above so players can join with a name instead of the IP and port.' />
+                    )
+                }
                 actions={(record) => (
                     <>
                         {canUpdate && (
@@ -142,18 +148,25 @@ function CreateForm({ data, identifier, onData }: { data: ServerSubdomains; iden
                 }}
             >
                 <div className='sub:grid sub:gap-2'>
-                    <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-2 sub:sm:grid-cols-[minmax(0,1fr)_auto_14rem] sub:sm:items-end'>
-                        <div>
-                            <Label htmlFor='sub-name'>Name</Label>
+                    {/* Labels share the first row and the inputs the second, so both line up and the dot sits between the inputs. */}
+                    <div className='sub:grid sub:grid-cols-[minmax(0,1fr)] sub:gap-x-2 sub:gap-y-1 sub:sm:grid-cols-[minmax(0,1fr)_auto_14rem]'>
+                        <Label htmlFor='sub-name' className='sub:sm:col-start-1 sub:sm:row-start-1 sub:sm:self-end'>
+                            Name
+                        </Label>
+                        <div className='sub:sm:col-start-1 sub:sm:row-start-2'>
                             {automatic ? (
                                 <Input id='sub-name' readOnly className='sub:cursor-default sub:font-mono' placeholder='No free name' value={selected.preview ?? ''} />
                             ) : (
                                 <Input id='sub-name' placeholder='play' maxLength={63} value={name} onChange={(event) => setName(sanitize(event.currentTarget.value))} />
                             )}
                         </div>
-                        <span className='sub:hidden sub:pb-2 sub:text-muted-foreground sub:sm:block'>.</span>
-                        <div>
-                            <Label htmlFor='sub-domain'>Domain</Label>
+                        <span aria-hidden className='sub:hidden sub:self-center sub:text-muted-foreground sub:sm:col-start-2 sub:sm:row-start-2 sub:sm:block'>
+                            .
+                        </span>
+                        <Label htmlFor='sub-domain' className='sub:mt-2 sub:sm:col-start-3 sub:sm:row-start-1 sub:sm:mt-0 sub:sm:self-end'>
+                            Domain
+                        </Label>
+                        <div className='sub:sm:col-start-3 sub:sm:row-start-2'>
                             <Select id='sub-domain' value={domain} onChange={(value) => setDomain(Number(value))} options={data.domains.map((item) => ({ value: item.id, label: item.name }))} />
                         </div>
                     </div>

@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Button, Dialog, Label, Select, Switch, Table, TitledGreyBox, httpErrorToHuman, toast } from '@pterodactyl/sdk';
 import { removeDomain, saveAllowedEggs, updateDomain, type AdminDomain, type AdminOverview } from '../../api';
 import { namingSummary } from '../../naming';
+import { NoRecords } from '../RecordsTable';
 import DomainDialog from './DomainDialog';
 
 interface Props {
@@ -39,7 +40,7 @@ export default function Domains({ overview, onSaved }: Props) {
                 <Table
                     rows={overview.domains}
                     keyOf={(row) => String(row.id)}
-                    emptyState='No domains yet.'
+                    emptyState={<NoRecords title='No domains yet' text='Add a domain so servers can create subdomains on it.' />}
                     columns={[
                         {
                             id: 'name',

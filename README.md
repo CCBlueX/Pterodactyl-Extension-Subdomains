@@ -19,9 +19,9 @@ Let users give their servers a name like `play.example.com`, on your Cloudflare,
 
 - **Self-service**: users create, rename, re-point and delete subdomains, pick the allocation and add a note.
 - **Ranges and naming rules**: give out `<name>.serv.example.com` below any zone. Per domain, users type the name, get one from a pattern like `{username}-{server}`, or a random one.
-- **Record templates**: A, AAAA or CNAME plus optional SRV with placeholders, per egg. Minecraft gets its SRV record out of the box.
-- **Three DNS providers**: Cloudflare, Bunny DNS and PowerDNS, with encrypted credentials per domain.
-- **You stay in control, it stays correct**: limits per server, reserved names, eggs per domain and an overview of every subdomain. Records follow allocation and template changes and disappear with the server.
+- **Record templates**: A, AAAA or CNAME plus optional SRV with placeholders, per egg, with presets for Minecraft Java and Bedrock, Source games and TeamSpeak.
+- **Three DNS providers**: Cloudflare, Bunny DNS and PowerDNS, with encrypted credentials per domain, checked when you save. Names that already have records at the provider are refused, so hand-made records are never touched.
+- **You stay in control, it stays correct**: limits per server (or unlimited), reserved names, eggs per domain and an overview of every subdomain. Records follow allocation and template changes and disappear with the server.
 
 ![Admin domains](docs/screenshots/admin.png)
 

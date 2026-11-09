@@ -97,7 +97,7 @@ final class AdminController
     public function updateLimit(Request $request, int $id): JsonResponse
     {
         $server = Server::query()->findOrFail($id);
-        $limit = $request->validate(['limit' => ['nullable', 'integer', 'min:0', 'max:100']])['limit'];
+        $limit = $request->validate(['limit' => ['nullable', 'integer', 'min:-1', 'max:100']])['limit'];
 
         $limit === null
             ? Limit::query()->whereKey($server->id)->delete()

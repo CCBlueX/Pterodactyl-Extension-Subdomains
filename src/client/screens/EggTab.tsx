@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Spinner, Switch, TitledGreyBox, httpErrorToHuman, toast, useCurrentResource } from '@pterodactyl/sdk';
+import { Alert, Button, ServerError, Spinner, Switch, TitledGreyBox, httpErrorToHuman, toast, useCurrentResource } from '@pterodactyl/sdk';
 import { getEggTemplate, keys, resetEggTemplate, saveEggTemplate, type EggTemplate, type TemplateData } from '../api';
 import TemplateForm from '../components/TemplateForm';
 
@@ -31,13 +31,13 @@ export default function EggTab() {
     const resetting = useMutation({ mutationFn: () => resetEggTemplate(id), onSuccess: done(`This egg uses ${INHERITED[data.data?.inherited.key ?? 'default']} again.`), onError });
 
     if (!data.data || !draft) {
-        return data.isError ? <p className='sub:text-sm sub:text-destructive'>{httpErrorToHuman(data.error)}</p> : <Spinner centered />;
+        return data.isError ? <ServerError title='Could not load the subdomain template' message={httpErrorToHuman(data.error)} onRetry={() => data.refetch()} /> : <Spinner centered />;
     }
 
     const inherited = INHERITED[data.data.inherited.key];
 
     return (
-        <div className='sub:grid sub:gap-6'>
+        <div className='sub:grid sub:min-w-0 sub:grid-cols-[minmax(0,1fr)] sub:gap-6'>
             {!data.data.available && (
                 <Alert type='warning' title='Subdomains are off for this egg'>
                     Servers of this egg cannot create subdomains. Allow the egg under Admin → Subdomains → Domains.

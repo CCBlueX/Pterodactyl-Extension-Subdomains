@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { PageContentBlock, Spinner, httpErrorToHuman } from '@pterodactyl/sdk';
+import { PageContentBlock, ServerError, Spinner, httpErrorToHuman } from '@pterodactyl/sdk';
 import { getAdmin, keys, type AdminOverview } from '../api';
 import AllRecords from '../components/admin/AllRecords';
 import Domains from '../components/admin/Domains';
@@ -48,7 +48,7 @@ export default function AdminScreen() {
             {tab === 'subdomains' ? (
                 <AllRecords />
             ) : !overview.data ? (
-                overview.isError ? <p className='sub:text-sm sub:text-destructive'>{httpErrorToHuman(overview.error)}</p> : <Spinner centered size={Spinner.Size.LARGE} />
+                overview.isError ? <ServerError title='Could not load subdomain settings' message={httpErrorToHuman(overview.error)} onRetry={() => overview.refetch()} /> : <Spinner centered size={Spinner.Size.LARGE} />
             ) : tab === 'domains' ? (
                 <Domains overview={overview.data} onSaved={update} />
             ) : tab === 'templates' ? (

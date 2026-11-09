@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Input, Select, TitledGreyBox, httpErrorToHuman, toast } from '@pterodactyl/sdk';
 import { saveNode, type AdminNode, type AdminOverview, type NodeMode } from '../../api';
+import { NoRecords } from '../RecordsTable';
 
 const MODES: { value: NodeMode; label: string }[] = [
     { value: 'ip', label: 'IP addresses' },
@@ -28,7 +29,7 @@ export default function Nodes({ overview, onSaved }: Props) {
                 templates; without one the node's FQDN is used.
             </p>
             {overview.nodes.length === 0 ? (
-                <p className='sub:text-sm sub:text-muted-foreground'>No nodes yet.</p>
+                <NoRecords icon='server' title='No nodes yet' text='Nodes show up here once they are added to the panel.' />
             ) : (
                 <div className='sub:grid sub:gap-4'>
                     {overview.nodes.map((node) => (

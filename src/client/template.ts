@@ -17,13 +17,28 @@ export const TTL_OPTIONS = [
 
 export const PLACEHOLDERS: { key: string; help: string }[] = [
     { key: '{name}', help: 'the chosen name, e.g. play' },
+    { key: '{domain}', help: 'the domain, e.g. example.com' },
     { key: '{fqdn}', help: 'the full address, e.g. play.example.com' },
     { key: '{ip}', help: 'the address the records point to' },
     { key: '{port}', help: "the allocation's port" },
+    { key: '{server}', help: "the server's name as a label, e.g. survival" },
     { key: '{server_name}', help: "the server's name" },
 ];
 
-const EXAMPLE = { name: 'play', fqdn: 'play.example.com', ip: '203.0.113.10', port: '25570', server_name: 'Survival', hostname: 'node.example.net' };
+type RecordFields = Pick<TemplateData, 'address' | 'srv' | 'service' | 'protocol' | 'priority' | 'weight' | 'srv_port' | 'srv_target' | 'skip_port' | 'proxied'>;
+
+const plain: RecordFields = { address: 'ip', srv: false, service: '_minecraft', protocol: 'tcp', priority: 0, weight: 5, srv_port: '{port}', srv_target: '{fqdn}', skip_port: null, proxied: false };
+
+/** Starting points for the record fields. TTL and comment stay as they are. */
+export const PRESETS: { value: string; label: string; help: string; fields: RecordFields }[] = [
+    { value: 'minecraft-java', label: 'Minecraft: Java Edition', help: 'A records plus a _minecraft._tcp SRV record, so players join without a port. No SRV on 25565.', fields: { ...plain, srv: true, skip_port: 25565 } },
+    { value: 'minecraft-bedrock', label: 'Minecraft: Bedrock Edition', help: 'A records only: Bedrock clients do not read SRV records. Players add the port unless it is 19132.', fields: plain },
+    { value: 'source', label: "Source engine (CS2, TF2, Garry's Mod)", help: 'A records only: Source clients do not read SRV records. Players connect with name:port unless it is 27015.', fields: plain },
+    { value: 'teamspeak', label: 'TeamSpeak 3', help: 'A records plus a _ts3._udp SRV record. No SRV on 9987.', fields: { ...plain, srv: true, service: '_ts3', protocol: 'udp', priority: 10, skip_port: 9987 } },
+    { value: 'plain', label: 'Address only', help: 'A and AAAA records, nothing else.', fields: plain },
+];
+
+const EXAMPLE = { name: 'play', domain: 'example.com', fqdn: 'play.example.com', ip: '203.0.113.10', port: '25570', server: 'survival', server_name: 'Survival', hostname: 'node.example.net' };
 
 const render = (text: string, values: Record<string, string>) => text.replace(/\{([a-z_]+)\}/g, (match, key: string) => values[key] ?? match);
 

@@ -70,4 +70,14 @@ final class CloudflareTest extends TestCase
 
         (new Cloudflare($http, 'wrong'))->create(new Zone('zone1', 'example.com'), new DnsRecord('A', 'play.example.com', '203.0.113.7'));
     }
+
+    public function test_lists_the_record_types_at_a_name(): void
+    {
+        $http = new FakeTransport([new Response(200, ['success' => true, 'result' => [['type' => 'A'], ['type' => 'TXT'], ['type' => 'A']]])]);
+
+        $types = (new Cloudflare($http, 'secret'))->typesAt(new Zone('zone1', 'example.com'), 'Play.example.com');
+
+        $this->assertSame(['A', 'TXT'], $types);
+        $this->assertSame('https://api.cloudflare.com/client/v4/zones/zone1/dns_records?name=play.example.com&per_page=100', $http->requests[0]['url']);
+    }
 }
